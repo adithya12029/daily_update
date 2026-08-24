@@ -1,11 +1,12 @@
-"""
-scraper.py
+"""scraper.py
 
 Fetches recent news articles per topic from Google News RSS feeds,
-filters them to the last 24 hours, and removes any that have already
-been sent within the deduplication retention window.
+filters them to the last 24 hours, extracts a clean summary snippet,
+and removes any that have already been sent within the deduplication retention window.
 """
 
+import html
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from time import mktime
@@ -14,6 +15,7 @@ from urllib.parse import quote_plus
 
 import feedparser
 
+import config
 from config import (
     ARTICLE_FRESHNESS_HOURS,
     GOOGLE_NEWS_COUNTRY,
@@ -22,6 +24,11 @@ from config import (
     MAX_CANDIDATES_PER_TOPIC,
 )
 from database import is_duplicate
+
+# Fallback to default test topics if DAILY_TOPICS is not defined in config
+TEST_TOPICS = getattr(
+    config, "DAILY_TOPICS", ["Artificial Intelligence", "Space Exploration"]
+)
 
 
 @dataclass
@@ -33,18 +40,21 @@ class Article:
     source: str
     topic: str
     published_at: datetime
+    summary: str = ""  # Default ensures compatibility with 5-arg instantiation
+
+
+def _clean_html_snippet(raw_html: str) -> str:
+    """Strip HTML tags, unescape entities, and normalize whitespace."""
+    if not raw_html:
+        return "No summary snippet available."
+    unescaped = html.unescape(raw_html)
+    clean_text = re.sub(r"<[^>]+>", " ", unescaped)
+    clean_text = " ".join(clean_text.split())
+    return clean_text if clean_text else "No summary snippet available."
 
 
 def _build_rss_url(topic: str) -> str:
-    """
-    Construct a Google News RSS search URL for a given topic.
-
-    Args:
-        topic: The search topic/query string.
-
-    Returns:
-        A fully formed Google News RSS URL.
-    """
+    """Construct a Google News RSS search URL for a given topic."""
     query = quote_plus(topic)
     lang_short = GOOGLE_NEWS_LANGUAGE.split("-")[0]
     return (
@@ -54,17 +64,7 @@ def _build_rss_url(topic: str) -> str:
 
 
 def _parse_entry_datetime(entry: "feedparser.FeedParserDict") -> datetime:
-    """
-    Extract a timezone-aware UTC datetime from a feedparser entry.
-
-    Args:
-        entry: A single feedparser entry.
-
-    Returns:
-        A timezone-aware UTC datetime. Defaults to "now" if the feed did
-        not provide a parseable publish date, so the article is not
-        incorrectly filtered out due to missing metadata.
-    """
+    """Extract a timezone-aware UTC datetime from a feedparser entry."""
     time_struct = getattr(entry, "published_parsed", None)
     if time_struct is None:
         return datetime.now(timezone.utc)
@@ -72,27 +72,15 @@ def _parse_entry_datetime(entry: "feedparser.FeedParserDict") -> datetime:
 
 
 def fetch_topic_candidates(topic: str) -> List[Article]:
-    """
-    Fetch and filter candidate articles for a single topic.
-
-    Articles are excluded if they are older than ARTICLE_FRESHNESS_HOURS
-    or if they have already been sent within the deduplication window.
-
-    Args:
-        topic: The topic/search query to fetch news for.
-
-    Returns:
-        A list of fresh, non-duplicate Article objects (may be empty).
-
-    Raises:
-        RuntimeError: If the RSS feed cannot be fetched or parsed at all.
-    """
+    """Fetch and filter candidate articles for a single topic."""
     rss_url = _build_rss_url(topic)
 
     try:
         feed = feedparser.parse(rss_url)
     except Exception as exc:
-        raise RuntimeError(f"Failed to fetch/parse RSS feed for topic '{topic}': {exc}") from exc
+        raise RuntimeError(
+            f"Failed to fetch/parse RSS feed for topic '{topic}': {exc}"
+        ) from exc
 
     entries = getattr(feed, "entries", None)
     if not entries:
@@ -120,14 +108,18 @@ def fetch_topic_candidates(topic: str) -> List[Article]:
             if is_duplicate(url):
                 continue
         except Exception:
-            # Fail safe: if the dedup check itself errors, skip the
-            # article rather than crashing the whole pipeline.
             continue
 
-        source = getattr(entry, "source", {})
-        source_title = (
-            source.get("title", "Unknown Source") if isinstance(source, dict) else "Unknown Source"
+        source_obj = getattr(entry, "source", None)
+        if isinstance(source_obj, dict):
+            source_title = source_obj.get("title", "Unknown Source")
+        else:
+            source_title = getattr(source_obj, "title", "Unknown Source")
+
+        raw_summary = (
+            getattr(entry, "summary", "") or getattr(entry, "description", "")
         )
+        clean_summary = _clean_html_snippet(raw_summary)
 
         candidates.append(
             Article(
@@ -136,6 +128,7 @@ def fetch_topic_candidates(topic: str) -> List[Article]:
                 source=source_title,
                 topic=topic,
                 published_at=published_at,
+                summary=clean_summary,
             )
         )
 
@@ -146,18 +139,7 @@ def fetch_topic_candidates(topic: str) -> List[Article]:
 
 
 def fetch_all_candidates(topics: List[str]) -> Dict[str, List[Article]]:
-    """
-    Fetch candidate articles for a list of topics.
-
-    A failure on one topic does not abort the others; it is logged and
-    that topic simply returns an empty list.
-
-    Args:
-        topics: A list of topic strings to fetch news for.
-
-    Returns:
-        A dict mapping topic -> list of Article objects.
-    """
+    """Fetch candidate articles for a list of topics."""
     results: Dict[str, List[Article]] = {}
     for topic in topics:
         try:
@@ -166,3 +148,5 @@ def fetch_all_candidates(topics: List[str]) -> Dict[str, List[Article]]:
             print(f"[scraper] Warning: could not fetch news for topic '{topic}': {exc}")
             results[topic] = []
     return results
+
+

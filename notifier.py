@@ -191,3 +191,34 @@ def send_digest_email(stories: List[CuratedStory]) -> None:
         raise RuntimeError(f"Failed to send digest email via SMTP: {exc}") from exc
     except Exception as exc:
         raise RuntimeError(f"Unexpected error sending digest email: {exc}") from exc
+if __name__ == "__main__":
+    print("1. Preparing mock curated stories...")
+    sample_stories: List[CuratedStory] = [
+        {
+            "topic": "AI Security",
+            "title": "Why most organizations are getting AI security wrong",
+            "source": "TechRadar",
+            "summary": "Many organizations are reportedly failing to implement effective AI security measures. This widespread oversight is predicted to lead to significant negative consequences as AI adoption grows.",
+            "url": "https://techradar.com"
+        },
+        {
+            "topic": "AI Governance",
+            "title": "Singapore Abandons Voluntary AI Governance Framework",
+            "source": "Tech Times",
+            "summary": "Singapore is shifting its approach to AI governance from a voluntary model to binding legislation. The change aims to make compliance mandatory across platforms.",
+            "url": "https://techtimes.com"
+        }
+    ]
+
+    print("2. Generating and saving local HTML preview (email_preview.html)...")
+    html_content = build_html_digest(sample_stories)
+    with open("email_preview.html", "w", encoding="utf-8") as f:
+        f.write(html_content)
+    print("   -> Saved 'email_preview.html'. Open this file in your browser to inspect the layout!")
+
+    print(f"\n3. Attempting to send test email to {RECIPIENT_EMAIL}...")
+    try:
+        send_digest_email(sample_stories)
+        print("   -> Email sent successfully! Check your inbox (and Spam folder).")
+    except Exception as e:
+        print(f"   -> Failed to send email: {e}")

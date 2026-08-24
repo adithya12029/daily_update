@@ -50,20 +50,18 @@ RECIPIENT_EMAIL: str = _get_required_env("RECIPIENT_EMAIL")
 # Topics: the 5 daily target topics the agent will scan for news.
 # Edit this list to change what the agent tracks.
 # --------------------------------------------------------------------------
-DAILY_TOPICS: List[str] = [
-    "Artificial Intelligence",
-    "Global Economy",
-    "Climate Change",
-    "Space Exploration",
-    "Cybersecurity",
-]
-
+# config.py
+DAILY_TOPICS = {
+    "AI Security": '["AI red teaming" OR "LLM vulnerability" OR "AI security"]',
+    "AI Governance": '["Responsible AI" OR "AI governance" OR "AI regulation"]',
+    "Cloud Architecture": '["AWS architecture" OR "Kubernetes" OR "microservices"]',
+}
 # --------------------------------------------------------------------------
 # Deduplication / retention settings
 # --------------------------------------------------------------------------
 # Number of days a previously-sent article URL is remembered and excluded
 # from future digests.
-DEDUP_RETENTION_DAYS: int = 10
+DEDUP_RETENTION_DAYS: int = 3
 
 # Only consider articles published within this many hours as "fresh".
 ARTICLE_FRESHNESS_HOURS: int = 24
@@ -81,7 +79,7 @@ GOOGLE_NEWS_RSS_BASE_URL: str = "https://news.google.com/rss/search"
 GOOGLE_NEWS_LANGUAGE: str = "en-US"
 GOOGLE_NEWS_COUNTRY: str = "US"
 # Max number of candidate articles kept per topic after filtering.
-MAX_CANDIDATES_PER_TOPIC: int = 10
+MAX_CANDIDATES_PER_TOPIC: int = 5
 
 # --------------------------------------------------------------------------
 # LLM settings
@@ -90,7 +88,7 @@ MAX_CANDIDATES_PER_TOPIC: int = 10
 # free within daily rate limits) — check https://ai.google.dev/pricing for
 # current limits. Swap this string if you want a different Gemini model.
 GEMINI_MODEL: str = "gemini-2.5-flash"
-LLM_MAX_TOKENS: int = 1024
+LLM_MAX_TOKENS: int = 2048
 
 # --------------------------------------------------------------------------
 # Email settings
