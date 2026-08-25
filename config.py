@@ -52,9 +52,9 @@ RECIPIENT_EMAIL: str = _get_required_env("RECIPIENT_EMAIL")
 # --------------------------------------------------------------------------
 # config.py
 DAILY_TOPICS = {
-    "AI Security": '["AI red teaming" OR "LLM vulnerability" OR "AI security"]',
-    "AI Governance": '["Responsible AI" OR "AI governance" OR "AI regulation"]',
-    "Cloud Architecture": '["AWS architecture" OR "Kubernetes" OR "microservices"]',
+    "AI Security": '"AI red teaming" OR "LLM vulnerability" OR "AI security"',
+    "AI Governance": '"Responsible AI" OR "AI governance" OR "AI regulation"',
+    "Cloud Architecture": '"AWS architecture" OR "Kubernetes" OR "microservices"',
 }
 # --------------------------------------------------------------------------
 # Deduplication / retention settings

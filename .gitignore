@@ -16,11 +16,6 @@ __pycache__/
 *.pyd
 .pytest_cache/
 
-# SQLite dedup history database & test files
-news_agent.db
-*.db
-*.sqlite3
-
 # Generated outputs & local previews
 email_preview.html
 
@@ -33,3 +28,6 @@ cron.log
 Thumbs.db
 .vscode/
 .idea/
+
+# Track SQLite deduplication database for GitHub Actions persistence
+!news_agent.db

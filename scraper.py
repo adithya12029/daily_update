@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from time import mktime
-from typing import Dict, List
+from typing import Dict, List, Union
 from urllib.parse import quote_plus
 
 import feedparser
@@ -53,9 +53,9 @@ def _clean_html_snippet(raw_html: str) -> str:
     return clean_text if clean_text else "No summary snippet available."
 
 
-def _build_rss_url(topic: str) -> str:
-    """Construct a Google News RSS search URL for a given topic."""
-    query = quote_plus(topic)
+def _build_rss_url(query_str: str) -> str:
+    """Construct a Google News RSS search URL for a given query string."""
+    query = quote_plus(query_str)
     lang_short = GOOGLE_NEWS_LANGUAGE.split("-")[0]
     return (
         f"{GOOGLE_NEWS_RSS_BASE_URL}?q={query}"
@@ -71,22 +71,23 @@ def _parse_entry_datetime(entry: "feedparser.FeedParserDict") -> datetime:
     return datetime.fromtimestamp(mktime(time_struct), tz=timezone.utc)
 
 
-def fetch_topic_candidates(topic: str) -> List[Article]:
-    """Fetch and filter candidate articles for a single topic."""
-    rss_url = _build_rss_url(topic)
+def fetch_topic_candidates(topic_name: str, search_query: str = None) -> List[Article]:
+    """Fetch and filter candidate articles for a single topic using a specific search query."""
+    query_to_use = search_query if search_query else topic_name
+    rss_url = _build_rss_url(query_to_use)
 
     try:
         feed = feedparser.parse(rss_url)
     except Exception as exc:
         raise RuntimeError(
-            f"Failed to fetch/parse RSS feed for topic '{topic}': {exc}"
+            f"Failed to fetch/parse RSS feed for topic '{topic_name}': {exc}"
         ) from exc
 
     entries = getattr(feed, "entries", None)
     if not entries:
         if getattr(feed, "bozo", False):
             raise RuntimeError(
-                f"Malformed or empty RSS feed for topic '{topic}': "
+                f"Malformed or empty RSS feed for topic '{topic_name}': "
                 f"{getattr(feed, 'bozo_exception', 'unknown error')}"
             )
         return []
@@ -126,7 +127,7 @@ def fetch_topic_candidates(topic: str) -> List[Article]:
                 title=title,
                 url=url,
                 source=source_title,
-                topic=topic,
+                topic=topic_name,
                 published_at=published_at,
                 summary=clean_summary,
             )
@@ -138,15 +139,21 @@ def fetch_topic_candidates(topic: str) -> List[Article]:
     return candidates
 
 
-def fetch_all_candidates(topics: List[str]) -> Dict[str, List[Article]]:
-    """Fetch candidate articles for a list of topics."""
+def fetch_all_candidates(
+    topics: Union[Dict[str, str], List[str]]
+) -> Dict[str, List[Article]]:
+    """Fetch candidate articles for topics (supports both dict mapping and list)."""
     results: Dict[str, List[Article]] = {}
-    for topic in topics:
+
+    if isinstance(topics, dict):
+        items = topics.items()
+    else:
+        items = [(t, t) for t in topics]
+
+    for topic_name, search_query in items:
         try:
-            results[topic] = fetch_topic_candidates(topic)
+            results[topic_name] = fetch_topic_candidates(topic_name, search_query)
         except RuntimeError as exc:
-            print(f"[scraper] Warning: could not fetch news for topic '{topic}': {exc}")
-            results[topic] = []
+            print(f"[scraper] Warning: could not fetch news for topic '{topic_name}': {exc}")
+            results[topic_name] = []
     return results
-
-
