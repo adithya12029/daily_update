@@ -2,7 +2,7 @@ name: Daily News Digest
 
 on:
   schedule:
-    # Runs at 02:00 UTC (07:30 AM IST) daily
+    # Runs at 02:17 UTC (07:47 AM IST) daily
     - cron: '17 2 * * *'
   # Enables manual runs from the GitHub Actions tab
   workflow_dispatch:
